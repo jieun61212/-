@@ -1,0 +1,54 @@
+[
+  {
+    "id": "rehabilitation",
+    "name": "울(회)",
+    "description": "개인회생 · 개인파산 등 도산",
+    "prompt": "rehabilitation.md",
+    "defaults": {
+      "min_chars": 1200,
+      "max_chars": 1800,
+      "count_spaces": false,
+      "keyword_target": 5
+    },
+    "required_title_phrase": ""
+  },
+  {
+    "id": "civil",
+    "name": "울(민)",
+    "description": "계약 · 손해배상 · 민사소송",
+    "prompt": "civil.md",
+    "defaults": {
+      "min_chars": 1000,
+      "max_chars": 1500,
+      "count_spaces": true,
+      "keyword_target": 5
+    },
+    "required_title_phrase": "민사전문변호사"
+  },
+  {
+    "id": "family",
+    "name": "울(혼)",
+    "description": "이혼 · 재산분할 · 가사",
+    "prompt": "family.md",
+    "defaults": {
+      "min_chars": 1200,
+      "max_chars": 1800,
+      "count_spaces": false,
+      "keyword_target": 5
+    },
+    "required_title_phrase": ""
+  },
+  {
+    "id": "criminal",
+    "name": "울(형)",
+    "description": "수사 대응 · 형사재판",
+    "prompt": "criminal.md",
+    "defaults": {
+      "min_chars": 1200,
+      "max_chars": 1800,
+      "count_spaces": false,
+      "keyword_target": 5
+    },
+    "required_title_phrase": ""
+  }
+]
