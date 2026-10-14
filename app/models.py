@@ -7,8 +7,8 @@ class ArticleInput(BaseModel):
     model_config = ConfigDict(extra='forbid')
     project: str
     lawfirm: str
-    keyword: str = Field(min_length=2, max_length=60)
-    topic: str = Field(min_length=2, max_length=200)
+    keyword: str = Field(default='', max_length=60)
+    topic: str = Field(default='', max_length=200)
     subkeywords: str = Field(default='', max_length=300)
     region: str = Field(default='', max_length=60)
     institution: str = Field(default='', max_length=100)
@@ -17,7 +17,9 @@ class ArticleInput(BaseModel):
     min_chars: int = Field(default=1200, ge=600, le=6000)
     max_chars: int = Field(default=1800, ge=600, le=6000)
     keyword_target: int = Field(default=5, ge=2, le=12)
-    pdf_privacy_confirmed: bool = False
+    pdf_privacy_confirmed: bool = False  # legacy history compatibility; never required
+    privacy_identities: list[dict] = Field(default_factory=list, max_length=300)
+    keyword_suggestion: dict | None = None
     count_spaces: bool = False
     mode: Literal['ai', 'demo'] = 'ai'
 
@@ -40,6 +42,8 @@ class ArticleInput(BaseModel):
     def valid_selection(self):
         if not project_by_id(self.project) or not profile_by_id(self.lawfirm):
             raise ValueError('유효한 프로젝트와 법무법인을 선택하세요.')
+        if any(value and len(value) < 2 for value in [self.keyword, self.topic]):
+            raise ValueError('키워드와 주제는 입력할 경우 2자 이상이어야 합니다.')
         if self.max_chars < self.min_chars or self.max_chars - self.min_chars < 100:
             raise ValueError('글자 수 범위는 최소 100자 차이가 있어야 합니다.')
         return self

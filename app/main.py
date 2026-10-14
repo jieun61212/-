@@ -13,7 +13,9 @@ from config import settings
 from config.catalog import projects, profiles
 from content_generator.pipeline import generate
 from content_generator.provider import GenerationError
-from pdf_analyzer.analyzer import extract_pdf, anonymize
+from pdf_analyzer.analyzer import extract_pdf, anonymize, analyze_pdf
+from pdf_analyzer.keywords import suggest
+from pdf_analyzer.privacy import clean_structure
 from exporter.files import txt_bytes, docx_bytes
 
 logger = logging.getLogger('legal_blog')
@@ -78,7 +80,7 @@ async def preview_pdf(pdf: UploadFile = File(...)):
 def response_for(row):
     is_final = row['status'] in ('final', 'demo')
     return {'id': row['id'], 'created_at': row['created_at'], 'updated_at': row['updated_at'],
-            'status': row['status'], 'request': json.loads(row['request_json']),
+            'status': row['status'], 'request': {k: v for k, v in json.loads(row['request_json']).items() if k != 'privacy_identities'},
             'article': json.loads(row['article_json']) if is_final else None,
             'text': row['final_text'] if is_final else '',
             'analysis': json.loads(row['analysis_json'] or 'null') if is_final else None,
@@ -110,8 +112,7 @@ async def run_generation(draft_id, request, source='', previous=None, analysis=N
 
 
 @app.post('/api/generate')
-async def create_draft(payload: str = Form(..., max_length=24000), pdf: UploadFile | None = File(None),
-                       pdf_text: str = Form('', max_length=40000)):
+async def create_draft(payload: str = Form(..., max_length=24000), pdf: UploadFile | None = File(None)):
     try:
         request = ArticleInput.model_validate_json(payload)
     except ValidationError as exc:
@@ -121,17 +122,28 @@ async def create_draft(payload: str = Form(..., max_length=24000), pdf: UploadFi
         raise HTTPException(503, 'AI API 키가 없습니다. 서버 환경변수 LEGAL_BLOG_API_KEY를 설정한 뒤 서버를 재시작하세요.')
     if request.mode == 'demo' and pdf and pdf.filename:
         raise HTTPException(422, '판결문 기반 생성은 AI 모드에서만 지원합니다. 예시 모드에서는 PDF 첨부를 해제하세요.')
-    if pdf and pdf.filename and not request.pdf_privacy_confirmed:
-        raise HTTPException(422, '익명화된 판결문을 확인하고 개인정보 검토 완료를 체크하세요.')
     extracted = await read_pdf(pdf)
     source = extracted['text'] if extracted else ''
-    if extracted and pdf_text:
-        if len(pdf_text.strip()) < 50:
-            raise HTTPException(422, '익명화 후 판결문은 최소 50자의 텍스트가 필요합니다.')
-        source = anonymize(pdf_text)
+    request.privacy_identities = extracted['privacy_identities'] if extracted else []
+    request.keyword_suggestion = None
+    analysis = None
+    if source:
+        try:
+            async with work_slots:
+                analysis = await analyze_pdf(source)
+                analysis = clean_structure(analysis, request.privacy_identities)
+                plan = await suggest(source, analysis, request)
+            request.keyword = plan['keyword']
+            request.subkeywords = ', '.join(item['keyword'] for item in plan['subkeywords'])
+            request.topic = plan['topic']
+            request.keyword_suggestion = plan
+        except GenerationError as exc:
+            raise HTTPException(502, str(exc)) from exc
+    elif not request.keyword or not request.topic:
+        raise HTTPException(422, 'PDF가 없을 때는 메인키워드와 주제를 입력하세요.')
     request.references = anonymize(request.references)
     draft_id = storage.create(request, source)
-    return await run_generation(draft_id, request, source)
+    return await run_generation(draft_id, request, source, analysis=analysis)
 
 
 @app.post('/api/drafts/{draft_id}/validate')

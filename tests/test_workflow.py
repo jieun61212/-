@@ -294,22 +294,34 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 502)
         self.assertEqual(self.client.get(f"/api/drafts/{draft['id']}/export/docx").status_code, 404)
 
-    def test_pdf_requires_privacy_confirmation(self):
-        with patch('config.settings.API_KEY', 'test-not-real'):
-            response = self.client.post('/api/generate', data={'payload': request(mode='ai').model_dump_json()}, files={'pdf': ('judgment.pdf', pdf_bytes('The court dismissed the claim and explained the evidence at the hearing.'), 'application/pdf')})
-        self.assertEqual(response.status_code, 422); self.assertIn('개인정보', response.json()['detail'])
-
-    def test_manually_redacted_pdf_used_without_raw_storage(self):
-        req = request(mode='ai', pdf_privacy_confirmed=True)
-        fake_result = (make_demo(req), validate(make_demo(req), req), None, RESEARCH, 0)
-        redacted = 'The court dismissed the claim. [Name removed]. The evidence was assessed on the record.'
+    def test_pdf_auto_keywords_without_manual_inputs_or_confirmation(self):
+        req = request(mode='ai', keyword='', topic='')
+        analysis = {k: {'summary': '판결문에서 확인되지 않음', 'evidence': ''} for k in FIELDS}
+        plan = {'keyword': '울산 계약분쟁', 'candidates': ['울산 계약분쟁', '울산 계약상담', '울산 민사상담'],
+                'topic': '계약 이행과 증거를 어떻게 확인할까요?',
+                'subkeywords': [{'keyword': '계약 이행', 'evidence': 'performance of the contract'}],
+                'selection_basis': '사건 내용과 검색 의도 기반 추천 · 실제 검색량 미측정'}
+        async def generated(resolved, source, *args):
+            article = make_demo(resolved)
+            return article, validate(article, resolved), analysis, RESEARCH, 0
         with patch('config.settings.API_KEY', 'test-not-real'), \
-             patch('app.main.generate', AsyncMock(return_value=fake_result)):
-            response = self.client.post('/api/generate', data={'payload': req.model_dump_json(), 'pdf_text': redacted}, files={'pdf': ('judgment.pdf', pdf_bytes('The court dismissed the claim. Original text only for extraction and no storage.'), 'application/pdf')})
+             patch('app.main.analyze_pdf', AsyncMock(return_value=analysis)), \
+             patch('app.main.suggest', AsyncMock(return_value=plan)), \
+             patch('app.main.generate', AsyncMock(side_effect=generated)):
+            response = self.client.post('/api/generate', data={'payload': req.model_dump_json()}, files={'pdf': ('judgment.pdf', pdf_bytes('The court dismissed the claim. The parties disputed performance of the contract.'), 'application/pdf')})
         self.assertEqual(response.status_code, 200, response.text)
-        draft = response.json()
-        self.assertEqual(storage.get(draft['id'])['source'], redacted); self.assertTrue(draft['pdf_used'])
-        self.assertNotIn('Original text', storage.get(draft['id'])['source'])
+        result = response.json()
+        self.assertEqual(result['request']['keyword'], '울산 계약분쟁')
+        self.assertEqual(result['request']['subkeywords'], '계약 이행')
+        self.assertEqual(result['request']['topic'], plan['topic'])
+        self.assertNotIn('privacy_identities', result['request'])
+        self.assertEqual(storage.get(result['id'])['keyword'], '울산 계약분쟁')
+
+    def test_no_pdf_requires_keyword_and_topic(self):
+        req = request(keyword='', topic='')
+        response = self.client.post('/api/generate', data={'payload': req.model_dump_json()})
+        self.assertEqual(response.status_code, 422)
+        self.assertIn('PDF가 없을 때', response.json()['detail'])
 
 
 if __name__ == '__main__':

@@ -25,15 +25,15 @@
         </div>
         <div class="form-section">
           <div class="section-label"><span>01</span> 원고의 주제</div>
-          <div class="field"><label for="keyword">메인키워드 <span>*</span></label><input id="keyword" name="keyword" required minlength="2" maxlength="60" placeholder="예: 울산 개인회생"><small>제목 앞부분에 배치하고 본문에 자연스럽게 사용합니다.</small></div>
-          <div class="field"><label for="topic">주제 <span>*</span></label><textarea id="topic" name="topic" rows="2" required minlength="2" maxlength="200" placeholder="예: 최근 채무가 있을 때 개인회생을 준비하는 방법"></textarea></div>
-          <div class="field"><label for="subkeywords">서브키워드 <span class="optional">선택</span></label><input id="subkeywords" name="subkeywords" maxlength="300" placeholder="예: 변제금, 최근채무, 소득 증빙"></div>
+          <div class="field"><label for="keyword">메인키워드 <span class="optional">PDF 첨부 시 자동 선정</span></label><input id="keyword" name="keyword" required minlength="2" maxlength="60" placeholder="예: 울산 개인회생"><small>제목 앞부분에 배치하고 본문에 자연스럽게 사용합니다.</small></div>
+          <div class="field"><label for="topic">주제 <span class="optional">PDF 첨부 시 자동 작성</span></label><textarea id="topic" name="topic" rows="2" required minlength="2" maxlength="200" placeholder="예: 최근 채무가 있을 때 개인회생을 준비하는 방법"></textarea></div>
+          <div class="field"><label for="subkeywords">서브키워드 <span class="optional">PDF에서 자동 추출</span></label><input id="subkeywords" name="subkeywords" maxlength="300" placeholder="예: 변제금, 최근채무, 소득 증빙"></div>
         </div>
         <div class="form-section">
           <div class="section-label"><span>02</span> 참고할 자료</div>
           <label class="upload-box" id="upload-box" for="pdf"><span class="upload-icon" aria-hidden="true">↑</span><strong id="pdf-label">판결문 PDF 첨부</strong><small>클릭 또는 파일을 끌어 놓으세요 · 최대 10MB</small><input type="file" id="pdf" name="pdf" accept=".pdf,application/pdf" class="visually-hidden"></label>
-          <div id="pdf-actions" hidden><div class="pdf-buttons"><button id="pdf-preview" type="button" class="button small">익명화 원문 확인</button><button id="pdf-remove" type="button" class="button small subtle">첨부 해제</button></div><label class="checkbox-line"><input type="checkbox" id="pdf-confirm" disabled> 익명화 원문을 읽고 개인정보를 확인했습니다.</label></div>
-          <small class="help">첨부하면 판결문 기반 글로 전환합니다. 스캔 문서는 OCR이 필요합니다.</small>
+          <div id="pdf-actions" hidden><button id="pdf-remove" type="button" class="button small subtle">첨부 해제</button></div>
+          <small class="help">PDF만 첨부하면 키워드·서브키워드·주제를 자동 선정합니다. 원문을 수정할 필요 없이 글에서 개인정보를 제거합니다. 스캔 문서는 OCR이 필요합니다.</small>
           <div class="field"><label for="references">참고자료 <span class="optional">선택</span></label><textarea id="references" name="references" rows="3" maxlength="12000" placeholder="확인된 사건 개요나 법령·판례 발췌문과 출처를 입력하세요. 개인정보는 제외해 주세요."></textarea></div>
         </div>
         <details class="advanced"><summary>세부 작성 옵션 <span class="summary-hint">분량 · 지역 · 키워드</span></summary>
@@ -56,7 +56,7 @@
       <div id="progress" class="progress" hidden><span class="spinner"></span><div><strong id="progress-title">원고를 준비하고 있습니다</strong><p>공식 자료 검색 → 작성 → 독립 검수 → 필요한 부분 수정<br>입력과 자료에 따라 몇 분 정도 걸릴 수 있습니다.</p></div></div>
       <div class="empty-state" id="empty-state"><div class="document-icon" aria-hidden="true"><span></span><span></span><span></span></div><h3>다음 원고를 시작해 보세요.</h3><p>왼쪽에서 프로젝트와 법무법인을 선택하고<br>메인키워드, 주제를 입력해 주세요.</p><div class="flow"><span>작성 규칙 적용</span><span>→</span><span>원고 작성</span><span>→</span><span>자동 검수</span></div></div>
       <div id="draft-result" hidden>
-        <div id="metrics" class="metrics"></div>
+        <div id="metrics" class="metrics"></div><details id="keyword-detail" class="result-detail" hidden open><summary>자동 선정 키워드</summary><div id="keyword-content" style="padding:0 24px 18px"></div></details>
         <details class="result-detail" open><summary>제목 추천 <span class="summary-hint">3개 · 자동 선정</span></summary><ol id="title-list" class="title-list"></ol></details>
         <details id="pdf-analysis" class="result-detail" hidden><summary>판결문 분석 <span class="summary-hint">항목별 원문 근거</span></summary><div id="analysis-content"></div></details>
         <details id="research-detail" class="result-detail" hidden><summary>법률 자료 검색 근거 <span class="summary-hint">공식 출처</span></summary><div id="research-content"></div></details>
@@ -69,7 +69,6 @@
   </div>
 </main>
 <dialog id="history-dialog"><div class="dialog-heading"><div><p class="eyebrow">YOUR ARCHIVE</p><h2>작성 이력</h2></div><button class="button small subtle" data-close="history-dialog" aria-label="닫기">✕</button></div><div class="history-controls"><input id="history-query" placeholder="메인키워드 또는 비슷한 주제로 검색" aria-label="작성 이력 검색"><select id="history-project" aria-label="이력 프로젝트 필터"><option value="">전체 프로젝트</option></select><select id="history-firm" aria-label="이력 법무법인 필터"><option value="">전체 법무법인</option></select></div><p class="help">최근 100건 · 주제 단어를 함께 검색하며 일치도가 높은 결과부터 표시합니다.</p><div id="history-items"></div></dialog>
-<dialog id="pdf-dialog"><div class="dialog-heading"><div><p class="eyebrow">PRIVACY CHECK</p><h2>익명화 원문 확인</h2></div><button class="button small subtle" data-close="pdf-dialog" aria-label="닫기">✕</button></div><p class="help">이름·주소·번호를 패턴으로 제거한 결과입니다. 남아 있는 개인정보를 직접 삭제해 주세요. 분석은 아래 수정된 원문을 기준으로 진행됩니다. PDF 원본은 저장하지 않습니다.</p><textarea id="pdf-redacted" rows="18" maxlength="40000" aria-label="익명화 판결문 텍스트"></textarea><button class="button primary" id="pdf-accept" type="button">수정된 원문 사용</button></dialog>
 <div id="toast" class="toast" role="status" hidden></div>
 </body>
 </html>

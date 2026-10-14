@@ -12,3 +12,5 @@
 - Required code checks: .venv/bin/python -m unittest discover -v.
 - UI changes: also run python -m tests.browser_smoke with available Playwright and Chromium, or the documented dev dependency setup.
 - Use temporary databases for tests; do not overwrite user history.
+
+- With a PDF, automatically choose main/subkeywords and topic; never require users to redact the source or confirm privacy. Remove private identities in analysis and manuscripts. Never claim measured search volumes without actual volume data.

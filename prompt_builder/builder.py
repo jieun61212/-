@@ -14,7 +14,7 @@ def build_messages(request, source='', analysis=None, research=None):
     if source:
         instructions += '\n' + prompt('pdf_article.md')
     data = {
-        '입력': request.model_dump(exclude={'mode'}),
+        '입력': request.model_dump(exclude={'mode', 'privacy_identities'}),
         '선택된_법무법인_유일한_프로필': profile_by_id(request.lawfirm),
         '익명화된_판결문': source,
         '판결문_분석': analysis,

@@ -9,19 +9,21 @@ FIELDS = {'case_type': '사건 유형', 'background': '사건 경위', 'issues':
           'decision': '법원의 판단', 'outcome': '결과', 'implications': '실무상 의미'}
 
 
-def anonymize(text):
+def anonymize(text, remove_names=True):
     patterns = [
         (r'\b\d{6}\s*[-–]\s*[1-4]\d{6}\b', '[주민등록번호 삭제]'),
         (r'(?<!\d)(?:01[016789]|0[2-6][1-5]?)\s*[-.)]\s*\d{3,4}\s*[-.]\s*\d{4}(?!\d)', '[전화번호 삭제]'),
         (r'[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}', '[이메일 삭제]'),
         (r'(?<!\d)\d{2,6}-\d{2,6}-\d{3,8}(?!\d)', '[계좌·개인번호 삭제]'),
         (r'\d{4}[.년/-]\s*\d{1,2}[.월/-]\s*\d{1,2}[.일]?\s*(?:생|출생)', '[생년월일 삭제]'),
-        (r'(?:계좌(?:번호)?|주민등록번호|생년월일|연락처|전화번호)\s*[:：]?\s*[^\n]+', '[개인정보 항목 삭제]'),
-        (r'(?:주소|거주지|소재지)\s*[:：]?\s*[^\n]+', '[주소 삭제]'),
+        (r'(?:계좌(?:번호)?|주민등록번호|생년월일|연락처|전화번호)[ \t]*[:：][ \t]*[^\n]+', '[개인정보 항목 삭제]'),
+        (r'(?:주소|주소지|거주지|소재지)[ \t]*[:：][ \t]*[^\n]+', '[주소 삭제]'),
         (r'(?<![가-힣])(?:서울|부산|울산|대구|광주|대전|인천|세종|경기|강원|충청|전라|경상|제주)[가-힣]*(?:특별시|광역시|특별자치도|도)?\s+[가-힣]+(?:시|군|구)\s+[^\n,]+', '[주소 삭제]'),
     ]
     for pattern, replacement in patterns:
         text = re.sub(pattern, replacement, text)
+    if not remove_names:
+        return text
     # Collect identified names, then remove repeated occurrences throughout the text.
     names = set()
     pattern = r'(?:원고|피고|피고인|신청인|채무자|채권자|고소인|피해자|성명|이름|대표자|증인|변호사)\s*[:：]?\s*([가-힣]{2,4})(?=\s|[,.(（\n]|$)'
@@ -56,7 +58,9 @@ def extract_pdf(data):
         raise ValueError('추출 가능한 텍스트가 없습니다. 스캔 PDF는 OCR 후 첨부하세요.')
     if len(text) > MAX_SOURCE_CHARS:
         raise ValueError('판결문 텍스트가 40,000자를 넘습니다. 관련 판결 부분만 포함한 PDF를 사용하세요.')
-    return {'text': anonymize(text), 'pages': len(reader.pages), 'privacy_note': '인명·주소·연락처 등 패턴 기반 1차 익명화 후 AI에서 재검수합니다. 스캔·비정형 문서는 지원이 제한됩니다.'}
+    from pdf_analyzer.privacy import fingerprints, remove_identities
+    identities = fingerprints(text)
+    return {'privacy_identities': identities, 'text': remove_identities(anonymize(text), identities), 'pages': len(reader.pages), 'privacy_note': '인명·주소·연락처 등 패턴 기반 1차 익명화 후 AI에서 재검수합니다. 스캔·비정형 문서는 지원이 제한됩니다.'}
 
 
 def verify_analysis(data, source):

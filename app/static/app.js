@@ -46,12 +46,12 @@ function inputValues() {
     references: $('references').value.trim(),
     min_chars: Number($('min-chars').value), max_chars: Number($('max-chars').value),
     keyword_target: Number($('keyword-target').value), count_spaces: $('count-spaces').checked,
-    pdf_privacy_confirmed: $('pdf-confirm').checked, mode: $('mode').value
+    mode: $('mode').value
   };
 }
 function inputFingerprint(values) {
   // Key ordering differs between browser inputs and Pydantic responses.
-  return JSON.stringify(Object.keys(values).filter(k => k !== 'pdf_privacy_confirmed').sort().map(k => [k, values[k]]));
+  return JSON.stringify(Object.keys(values).filter(k => !['pdf_privacy_confirmed', 'privacy_identities', 'keyword_suggestion'].includes(k)).sort().map(k => [k, values[k]]));
 }
 function fingerprint() {
   return inputFingerprint(inputValues()) + '|' + ($('pdf').files[0]?.name || '') + '|' + state.redacted;
@@ -101,8 +101,20 @@ function setBusy(busy, title = '원고를 준비하고 있습니다') {
 function renderDraft(draft) {
   if (!draft.article || !draft.report?.passed) throw new Error('검수를 통과한 최종 원고가 아닙니다.');
   state.draft = draft;
+  if (draft.pdf_used) {
+    $('keyword').value = draft.request.keyword; $('subkeywords').value = draft.request.subkeywords; $('topic').value = draft.request.topic;
+  }
   state.snapshot = inputFingerprint(draft.request) + '|' + ($('pdf').files[0]?.name || '') + '|' + state.redacted;
   const article = draft.article, report = draft.report;
+  $('keyword-detail').hidden = !draft.request.keyword_suggestion;
+  $('keyword-content').replaceChildren();
+  if (draft.request.keyword_suggestion) {
+    const plan = draft.request.keyword_suggestion;
+    $('keyword-content').append(el('p', '메인키워드: ' + plan.keyword), el('p', '후보: ' + plan.candidates.join(' / ')), el('p', plan.selection_basis, 'help'));
+    for (const term of plan.subkeywords) {
+      $('keyword-content').append(el('strong', term.keyword), el('blockquote', term.evidence));
+    }
+  }
   $('output-status').textContent = statuses[draft.status];
   $('output-status').className = 'pill ' + (draft.status === 'demo' ? 'demo' : 'complete');
   const project = state.config.projects.find(p => p.id === draft.request.project);
@@ -188,13 +200,11 @@ $('draft-form').addEventListener('submit', event => {
   const values = inputValues();
   if (values.max_chars - values.min_chars < 100) return showError('최대 글자 수는 최소 글자 수보다 100자 이상 커야 합니다.');
   if (values.mode === 'ai' && !state.config.ai_available) return showError('AI API 키가 없습니다. 서버 환경변수 LEGAL_BLOG_API_KEY를 설정하고 서버를 재시작하세요.');
-  if ($('pdf').files.length && !values.pdf_privacy_confirmed) return showError('익명화 원문을 확인하고 개인정보 검토 완료를 체크하세요.');
   if ($('pdf').files.length && values.mode === 'demo') return showError('예시 모드는 PDF 원고를 지원하지 않습니다. AI 모드를 선택하거나 첨부를 해제하세요.');
   const form = new FormData();
   form.append('payload', JSON.stringify(values));
   if ($('pdf').files[0]) {
     form.append('pdf', $('pdf').files[0]);
-    form.append('pdf_text', state.redacted);
   }
   perform(() => api('/api/generate', {method: 'POST', body: form}), values.mode === 'demo' ? '예시 원고와 검수 결과를 준비합니다' : '근거 자료를 확인하고 원고를 작성합니다');
 });
@@ -252,7 +262,6 @@ for (const format of ['txt', 'docx']) {
 }
 function resetPdf() {
   state.redacted = ''; state.pdfFile = null;
-  $('pdf-confirm').checked = false; $('pdf-confirm').disabled = true;
 }
 function onPdfChange() {
   resetPdf();
@@ -262,37 +271,17 @@ function onPdfChange() {
   }
   const current = $('pdf').files[0];
   state.pdfFile = current || null;
+  $('keyword').required = !current; $('topic').required = !current;
+  if (current) {
+    $('keyword').value = ''; $('subkeywords').value = ''; $('topic').value = '';
+    toast('판결문을 적용했습니다. 원고 생성 시 키워드와 주제를 자동으로 선정합니다.');
+  }
   $('pdf-label').textContent = current ? current.name : '판결문 PDF 첨부';
   $('pdf-actions').hidden = !current;
   refreshNotice();
 }
 $('pdf').addEventListener('change', onPdfChange);
 $('pdf-remove').addEventListener('click', () => { $('pdf').value = ''; onPdfChange(); });
-$('pdf-preview').addEventListener('click', async () => {
-  const file = $('pdf').files[0];
-  if (!file) return;
-  $('pdf-preview').disabled = true;
-  try {
-    if (!state.redacted) {
-      const form = new FormData(); form.append('pdf', file);
-      const result = await api('/api/pdf/preview', {method: 'POST', body: form});
-      // Do not attach a slow response to a different file selected meanwhile.
-      if ($('pdf').files[0] !== file) return;
-      state.redacted = result.text;
-    }
-    $('pdf-redacted').value = state.redacted;
-    $('pdf-dialog').showModal();
-  } catch (error) { showError(error.message); }
-  finally { $('pdf-preview').disabled = false; }
-});
-$('pdf-accept').addEventListener('click', () => {
-  const text = $('pdf-redacted').value.trim();
-  if (text.length < 50) return toast('판결문 텍스트는 최소 50자가 필요합니다.');
-  state.redacted = text;
-  $('pdf-confirm').disabled = false; $('pdf-confirm').checked = false;
-  $('pdf-dialog').close();
-  toast('원문을 적용했습니다. 개인정보 검토 완료를 체크하세요.');
-});
 const box = $('upload-box');
 for (const name of ['dragenter', 'dragover']) {
   box.addEventListener(name, event => { event.preventDefault(); if (!state.busy) box.classList.add('dragging'); });

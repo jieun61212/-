@@ -93,12 +93,12 @@ def main():
                 assert page.locator('#topic').input_value() == '대금 지급 청구 준비'
                 page.locator('#pdf').set_input_files({'name': 'judgment.pdf', 'mimeType': 'application/pdf',
                     'buffer': pdf_bytes('The court dismissed the claim. The parties disputed the contract and evidence.')})
-                page.locator('#pdf-preview').click()
-                expect(page.locator('#pdf-dialog')).to_be_visible()
-                assert 'dismissed' in page.locator('#pdf-redacted').input_value()
-                page.locator('#pdf-accept').click()
-                expect(page.locator('#pdf-confirm')).to_be_enabled()
-                page.locator('#pdf-confirm').check()
+                assert page.locator('#keyword').input_value() == ''
+                assert page.locator('#subkeywords').input_value() == ''
+                assert page.locator('#topic').input_value() == ''
+                assert not page.locator('#keyword').evaluate('node => node.required')
+                assert not page.locator('#topic').evaluate('node => node.required')
+                assert page.locator('#pdf-confirm').count() == 0
                 page.locator('#generate').click()
                 expect(page.locator('#error')).to_contain_text('예시 모드는 PDF')
                 page.locator('#pdf-remove').click()
@@ -107,7 +107,7 @@ def main():
                 page.screenshot(path='/tmp/legal-studio-mobile.png', full_page=True)
                 assert not errors, errors
                 browser.close()
-                print('Browser smoke PASS: project defaults, firm isolation, generation, review, regeneration, history, clipboard, exports, PDF preview, responsive layout; no JS errors.')
+                print('Browser smoke PASS: project defaults, firm isolation, generation, review, regeneration, history, clipboard, exports, PDF automatic input mode, responsive layout; no JS errors.')
         finally:
             server.terminate()
             server.wait(timeout=10)

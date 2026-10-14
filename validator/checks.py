@@ -1,4 +1,5 @@
 import re
+from pdf_analyzer.privacy import clean_output
 from config.catalog import profile_by_id, profiles, project_by_id
 
 BANNED = ['무조건', '100%', '반드시 성공', '기각 없음', '전국 1위', '최고', '무조건 면책', '무조건 승소']
@@ -72,8 +73,8 @@ def validate(article, request, source='', research_text=''):
     check('CERTAINTY', '지나친 단정', not certainty, '결과를 단정하는 표현: ' + ', '.join(certainty))
     advertising = [w for w in AD_CTA if w in article.cta]
     check('CTA', 'CTA 광고성', not advertising and article.cta.count('!') == 0, 'CTA에 과도한 광고·강요 표현이 있습니다: ' + ', '.join(advertising))
-    personal = bool(re.search(r'\b\d{6}-[1-4]\d{6}\b|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}', all_text))
-    check('PRIVACY', '개인정보 패턴', not personal, '원고에 주민등록번호 또는 이메일이 있습니다.')
+    personal = clean_output(all_text, request.privacy_identities, allowed_phone) != all_text or bool(re.search(r'\b\d{6}-[1-4]\d{6}\b|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}', all_text))
+    check('PRIVACY', '개인정보 패턴', not personal, '원고에 당사자 이름·주소·개인번호 등 개인정보가 감지됐습니다.')
     if source:
         success = any(w in all_text for w in ['성공사례', '성공 사례', '승소사례', '승소 사례', '우리 의뢰인', '수임한 사건'])
         check('CASE_SUCCESS', '사례 성과 단정', not success, '제공 판결문을 법무법인의 수임·성공사례로 표현할 수 없습니다.')
